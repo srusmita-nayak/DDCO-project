@@ -13,7 +13,6 @@ import pyshark  # requires tshark/Wireshark and tshark in PATH
 
 running = False
 
-
 class BusArbitrationSimulator:
     def __init__(self, root):
         self.root = root
@@ -21,10 +20,8 @@ class BusArbitrationSimulator:
         self.root.geometry("1200x900")
         self.root.minsize(1000, 700)
         self.root.resizable(True, True)
-        # Light, clean background
         self.root.configure(bg="#f3f4f6")
 
-        # ---------- Global styles ----------
         style = ttk.Style()
         try:
             style.theme_use("clam")
@@ -32,7 +29,6 @@ class BusArbitrationSimulator:
             pass
         style.configure("TCombobox", fieldbackground="#ffffff", background="#ffffff", foreground="#111827")
 
-        # Top title bar
         header = tk.Frame(root, bg="#ffffff", height=48, highlightthickness=1, highlightbackground="#e5e7eb")
         header.pack(fill="x", side="top")
         title_lbl = tk.Label(
@@ -52,51 +48,36 @@ class BusArbitrationSimulator:
         )
         subtitle_lbl.pack(side="left", padx=8, pady=8)
 
-        # Canvas for diagram
         canvas_frame = tk.Frame(root, bg="#f3f4f6")
         canvas_frame.pack(fill="both", expand=True, padx=0, pady=0)
         self.canvas = tk.Canvas(canvas_frame, width=1200, height=380, bg="#ffffff", highlightthickness=1,
                                 highlightbackground="#e5e7eb")
         self.canvas.pack(padx=16, pady=(8, 4))
 
-        # Bottom control panel - scrollable container
         control_container = tk.Frame(root, bg="#f3f4f6")
         control_container.pack(fill="both", expand=False, side="bottom", padx=0, pady=(4, 0))
-        
-        # Create scrollable canvas for control panel
         self.control_canvas = tk.Canvas(control_container, bg="#f3f4f6", highlightthickness=0)
         control_scrollbar = tk.Scrollbar(control_container, orient="vertical", command=self.control_canvas.yview)
         self.control_frame = tk.Frame(self.control_canvas, bg="#f3f4f6")
         
-        # Function to update scroll region and canvas width
         def update_scroll_region(event=None):
             self.control_canvas.configure(scrollregion=self.control_canvas.bbox("all"))
-            # Make sure the frame width matches canvas width
             canvas_width = event.width if event else self.control_canvas.winfo_width()
             if canvas_width > 1:
                 self.control_canvas.itemconfig(self.control_frame_id, width=canvas_width)
-        
-        # Configure scrolling
         self.control_frame.bind("<Configure>", update_scroll_region)
         self.control_canvas.bind("<Configure>", update_scroll_region)
-        
         self.control_frame_id = self.control_canvas.create_window((0, 0), window=self.control_frame, anchor="nw")
         self.control_canvas.configure(yscrollcommand=control_scrollbar.set)
-        
-        # Pack scrollable components
         self.control_canvas.pack(side="left", fill="both", expand=True)
         control_scrollbar.pack(side="right", fill="y")
-        
-        # Bind mouse wheel to control canvas
         def _on_control_mousewheel(event):
             self.control_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         self.control_canvas.bind("<MouseWheel>", _on_control_mousewheel)
         self.control_frame.bind("<MouseWheel>", _on_control_mousewheel)
-        
         for col in range(3):
             self.control_frame.columnconfigure(col, weight=1)
 
-        # Devices & Arbiter
         self.device_labels = ["Device 1", "Device 2", "Device 3", "Device 4"]
         self.device_count = len(self.device_labels)
         self.arbiter_x, self.arbiter_y = 150, 250
@@ -108,7 +89,6 @@ class BusArbitrationSimulator:
         self.device_boxes = []
         self.draw_static_components()
 
-        # Per-device status labels (under each device) - create a frame below canvas
         status_frame = tk.Frame(canvas_frame, bg="#f3f4f6", height=30)
         status_frame.pack(fill="x", padx=16, pady=(0, 4))
         status_frame.pack_propagate(False)
@@ -119,9 +99,6 @@ class BusArbitrationSimulator:
             status.place(x=x - 30, y=5)
             self.device_status_labels.append(status)
 
-        # -------- Controls layout (bottom panel) --------
-
-        # Log box - larger area for better visibility
         self.log_frame = tk.Frame(self.control_frame, bg="#f3f4f6")
         self.log_frame.grid(row=0, column=0, columnspan=3, sticky="ew", padx=12, pady=(8, 4))
         self.log_frame.columnconfigure(0, weight=1)
@@ -131,7 +108,7 @@ class BusArbitrationSimulator:
         self.log = tk.Text(
             self.log_frame,
             width=140,
-            height=10,  # Increased from 4 to 10 lines
+            height=10,
             font=("Consolas", 9),
             bg="#ffffff",
             fg="#111827",
@@ -146,15 +123,12 @@ class BusArbitrationSimulator:
 
         info_frame = tk.Frame(self.control_frame, bg="#f3f4f6")
         info_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=12)
-        # Stats: grants per device
         self.grant_counts = [0] * self.device_count
         self.stats_label = tk.Label(info_frame, text="Stats: ", font=("Segoe UI", 9), fg="#4b5563", bg="#f3f4f6")
         self.stats_label.pack(side="left")
-        # Error/info bar
         self.error_label = tk.Label(info_frame, text="", font=("Segoe UI", 9), fg="#b91c1c", bg="#f3f4f6")
         self.error_label.pack(side="right")
 
-        # Left: Arbitration Mode
         mode_frame = tk.LabelFrame(
             self.control_frame,
             text="Arbitration",
@@ -176,7 +150,6 @@ class BusArbitrationSimulator:
         )
         self.mode_menu.grid(row=0, column=1, padx=(0, 8), pady=6)
 
-        # Center: Simulation controls
         sim_frame = tk.LabelFrame(
             self.control_frame,
             text="Simulation",
@@ -217,17 +190,14 @@ class BusArbitrationSimulator:
         )
         self.stop_btn.grid(row=0, column=1, padx=(6, 18), pady=8)
 
-        # Networking for Wireshark integration (UDP on localhost)
         self.udp_ip = "127.0.0.1"
-        self.udp_port = 5555  # choose any unused port
+        self.udp_port = 5555
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # Find TShark path automatically
         self.tshark_path = self.find_tshark()
         if not self.tshark_path:
             self.log_message("[Warning] TShark not found. Please configure the path manually.\n")
 
-        # Wireshark / PyShark integration controls
         net_frame = tk.LabelFrame(
             self.control_frame,
             text="Wireshark / PyShark",
@@ -251,7 +221,6 @@ class BusArbitrationSimulator:
         )
         self.wireshark_check.grid(row=0, column=0, columnspan=3, sticky="w", padx=8, pady=(6, 2))
         
-        # TShark path configuration
         tk.Label(net_frame, text="TShark path:", font=("Segoe UI", 9), fg="#111827", bg="#f3f4f6").grid(
             row=1, column=0, padx=(8, 4), pady=4, sticky="w"
         )
@@ -281,20 +250,17 @@ class BusArbitrationSimulator:
         tk.Label(net_frame, text="PyShark iface:", font=("Segoe UI", 9), fg="#111827", bg="#f3f4f6").grid(
             row=2, column=0, padx=(8, 4), pady=4, sticky="w"
         )
-        # Use Combobox for interface selection with common options (editable)
         self.capture_iface_var = tk.StringVar()
         self.capture_iface = ttk.Combobox(
             net_frame,
             textvariable=self.capture_iface_var,
             width=18,
             font=("Segoe UI", 9),
-            state="normal"  # Allow typing custom interface names
+            state="normal"
         )
-        # Default to loopback interface (Windows format)
         self.capture_iface_var.set(r"\Device\NPF_Loopback")
-        # Common interface options (user can also type custom)
         common_interfaces = [
-            r"\Device\NPF_Loopback",  # Loopback (for localhost traffic)
+            r"\Device\NPF_Loopback",
             "Wi-Fi",
             "Ethernet",
             "Local Area Connection",
@@ -302,7 +268,6 @@ class BusArbitrationSimulator:
         self.capture_iface['values'] = common_interfaces
         self.capture_iface.grid(row=2, column=1, padx=(0, 2), pady=4, sticky="ew")
         
-        # Button to refresh/list interfaces
         refresh_iface_btn = tk.Button(
             net_frame,
             text="List",
@@ -335,22 +300,45 @@ class BusArbitrationSimulator:
         )
         self.capture_btn.grid(row=3, column=0, columnspan=3, padx=8, pady=(2, 8), sticky="e")
 
-        # For round-robin
         self.next_index = 0
 
-        # Bind mouse wheel to log scrolling - Windows uses MouseWheel, Linux/Mac use Button-4/5
         self.log.bind("<MouseWheel>", self._on_mousewheel)
         self.log_frame.bind("<MouseWheel>", self._on_mousewheel)
-        # Linux/Mac fallback
         self.log.bind("<Button-4>", lambda e: self.log.yview_scroll(-1, "units"))
         self.log.bind("<Button-5>", lambda e: self.log.yview_scroll(1, "units"))
         self.log_frame.bind("<Button-4>", lambda e: self.log.yview_scroll(-1, "units"))
         self.log_frame.bind("<Button-5>", lambda e: self.log.yview_scroll(1, "units"))
-        # Make log focusable for better scrolling
         self.log_frame.bind("<Enter>", lambda e: self.log.focus_set())
 
+        # ---- NEW: Bus Operation Selection ----
+        ops_frame = tk.LabelFrame(
+            self.control_frame,
+            text="Bus Operation",
+            bg="#f3f4f6",
+            fg="#4b5563",
+            font=("Segoe UI", 9, "bold"),
+            labelanchor="n"
+        )
+        # Placed after other controls, occupying a new row
+        ops_frame.grid(row=3, column=0, sticky="w", padx=12, pady=8, columnspan=2)
+        self.bus_ops = [
+            "Instruction Fetch",
+            "Data Read",
+            "Data Write",
+            "Read-Modify-Write",
+            "Bus Lock"
+        ]
+        self.bus_op_var = tk.StringVar(value=self.bus_ops[0])
+        self.bus_op_menu = ttk.Combobox(ops_frame, textvariable=self.bus_op_var, values=self.bus_ops, state="readonly", width=22)
+        self.bus_op_menu.grid(row=0, column=0, padx=(8,4), pady=6)
+        tk.Label(ops_frame, text="Data (optional):", font=("Segoe UI", 9), fg="#111827", bg="#f3f4f6").grid(
+            row=0, column=1, padx=(8, 4), pady=6, sticky="e"
+        )
+        self.data_entry = tk.Entry(ops_frame, width=10, font=("Segoe UI", 9), bg="#ffffff", fg="#111827",
+                                   insertbackground="#111827", relief="solid", borderwidth=1)
+        self.data_entry.grid(row=0, column=2, padx=(0, 8), pady=6, sticky="ew")
+
     def find_tshark(self):
-        """Try to find tshark.exe in common installation paths"""
         common_paths = [
             r"C:\Program Files\Wireshark\tshark.exe",
             r"C:\Program Files (x86)\Wireshark\tshark.exe",
@@ -359,7 +347,6 @@ class BusArbitrationSimulator:
         for path in common_paths:
             if os.path.exists(path):
                 return path
-        # Also check if tshark is in PATH
         import shutil
         tshark_in_path = shutil.which("tshark")
         if tshark_in_path:
@@ -367,7 +354,6 @@ class BusArbitrationSimulator:
         return None
 
     def browse_tshark(self):
-        """Open file dialog to browse for tshark.exe"""
         filename = filedialog.askopenfilename(
             title="Select TShark executable",
             filetypes=[("Executable files", "*.exe"), ("All files", "*.*")],
@@ -380,7 +366,6 @@ class BusArbitrationSimulator:
             self.log_message(f"TShark path set to: {filename}\n")
 
     def list_interfaces(self):
-        """List available network interfaces using tshark"""
         tshark_path = self.tshark_path_entry.get().strip()
         if not tshark_path or not os.path.exists(tshark_path):
             self.set_error("TShark path not set or invalid")
@@ -389,7 +374,6 @@ class BusArbitrationSimulator:
 
         try:
             import subprocess
-            # Run: tshark -D to list interfaces
             result = subprocess.run(
                 [tshark_path, "-D"],
                 capture_output=True,
@@ -403,16 +387,13 @@ class BusArbitrationSimulator:
                 for iface in interfaces:
                     if iface.strip():
                         self.log_message(f"{iface}\n")
-                        # Extract interface name (format: "1. \Device\NPF_...")
                         parts = iface.split('.', 1)
                         if len(parts) > 1:
                             iface_name = parts[1].strip()
                             interface_list.append(iface_name)
-                
-                # Update combobox with found interfaces
+
                 if interface_list:
                     current_values = list(self.capture_iface['values'])
-                    # Add new interfaces that aren't already in the list
                     for iface in interface_list:
                         if iface not in current_values:
                             current_values.append(iface)
@@ -425,14 +406,12 @@ class BusArbitrationSimulator:
             self.set_error("Failed to list interfaces - see log")
 
     def draw_static_components(self):
-        # Horizontal bus
         self.canvas.create_line(50, self.bus_y, 1150, self.bus_y, width=4, fill="black")
         self.canvas.create_text(100, self.bus_y - 20, text="BUS Busy", font=("Arial", 12, "bold"))
         self.canvas.create_text(400, self.bus_y - 20, text="BUS Request", font=("Arial", 12, "bold"))
         self.canvas.create_text(700, self.bus_y - 20, text="BUS Grant", font=("Arial", 12, "bold"))
         self.canvas.create_text(1050, self.bus_y - 20, text="Address/Data", font=("Arial", 12, "bold"))
 
-        # Arbiter
         self.arbiter_box = self.canvas.create_rectangle(
             self.arbiter_x - 50,
             self.arbiter_y - 50,
@@ -444,8 +423,6 @@ class BusArbitrationSimulator:
         )
         self.canvas.create_text(self.arbiter_x, self.arbiter_y,
                                 text="ARBITER", font=("Arial", 14, "bold"))
-
-        # Devices
         self.device_boxes = []
         for i in range(self.device_count):
             x = self.device_start_x + i * self.device_spacing
@@ -479,38 +456,63 @@ class BusArbitrationSimulator:
         running = False
         self.log_message("Simulation stopped.\n")
 
+    # MODIFIED simulation_loop for bus ops
     def simulation_loop(self):
         global running
+
         while running:
             try:
-                # Generate requests
                 requests = [random.choice([True, False]) for _ in range(self.device_count)]
-                requesting_devices = [
-                    self.device_labels[i] for i, req in enumerate(requests) if req
-                ]
-
-                # Determine winner
+                requesting_devices = [self.device_labels[i] for i, req in enumerate(requests) if req]
                 winner_index = self.determine_winner(requests)
+                op = self.bus_op_var.get()
 
-                # Update UI (must be done in main thread)
+                # Data input handling (only for certain operations)
+                user_data = self.data_entry.get()
+                if op in ["Data Write", "Read-Modify-Write"]:
+                    try:
+                        data = int(user_data) if user_data else random.randint(0, 255)
+                    except ValueError:
+                        data = random.randint(0, 255)
+                        self.root.after(0, self.log_message, "[Info] Data field invalid, using random value.\n")
+                else:
+                    data = None
+
                 self.root.after(0, self.update_colors, requests, winner_index)
 
                 if requesting_devices and winner_index is not None:
-                    msg = f"Bus granted to {self.device_labels[winner_index]}.\n"
+                    msg = f"Operation: {op} | Bus granted to {self.device_labels[winner_index]}\n"
+
+                    if op == "Instruction Fetch":
+                        event_type = "INSTR_FETCH"
+                        packet_data = "-"
+                    elif op == "Data Read":
+                        event_type = "DATA_READ"
+                        packet_data = "-"
+                    elif op == "Data Write":
+                        event_type = "DATA_WRITE"
+                        packet_data = data
+                    elif op == "Read-Modify-Write":
+                        event_type = "RMW"
+                        packet_data = data
+                    elif op == "Bus Lock":
+                        event_type = "BUS_LOCK"
+                        packet_data = "-"
+                    else:
+                        event_type = "GRANT"
+                        packet_data = "-"
+
                     self.root.after(0, self.log_message, msg)
-                    data = random.randint(1, 255)
+                    self.root.after(0, self.send_wireshark_frame, event_type, winner_index, packet_data)
 
-                    # Send UDP events
-                    self.root.after(0, self.send_wireshark_frame, "GRANT", winner_index, None)
-                    self.root.after(0, self.send_wireshark_frame, "DATA", winner_index, data)
-
-                    # Stats and animation
+                    if op in ["Data Write", "Read-Modify-Write"]:
+                        self.root.after(0, self.animate_data_packet, winner_index, data)
+                    else:
+                        self.root.after(0, self.animate_data_packet, winner_index, random.randint(1,255))
                     self.root.after(0, self.update_stats, winner_index)
-                    self.root.after(0, self.animate_data_packet, winner_index, data)
                 else:
-                    self.root.after(0, self.log_message, "No requests. Bus idle.\n")
+                    self.root.after(0, self.log_message, f"Operation: {op} | No requests. Bus idle.\n")
                     self.root.after(0, self.send_wireshark_frame, "IDLE", None, None)
-
                 time.sleep(2)
             except Exception as e:
                 err_text = f"[Simulation error] {e}\n"
@@ -526,7 +528,6 @@ class BusArbitrationSimulator:
             mode = self.mode_var.get()
         except Exception:
             mode = "Fixed Priority"
-
         if mode == "Fixed Priority":
             for i, req in enumerate(requests):
                 if req:
@@ -582,10 +583,8 @@ class BusArbitrationSimulator:
             start_x, start_y - 10, text=str(data), fill="white",
             font=("Arial", 10, "bold")
         )
-
         steps = 50
         dy = (start_y - self.bus_y) / steps
-
         def step(i):
             global running
             if not running:
@@ -599,13 +598,11 @@ class BusArbitrationSimulator:
             self.canvas.move(packet, 0, -dy)
             self.canvas.move(text, 0, -dy)
             self.root.after(20, step, i + 1)
-
         step(0)
 
     def send_wireshark_frame(self, event_type, device_index, data=None):
         if not self.wireshark_enabled.get():
             return
-
         try:
             device_name = (
                 self.device_labels[device_index]
@@ -614,7 +611,6 @@ class BusArbitrationSimulator:
             )
         except Exception:
             device_name = "INVALID"
-
         payload = f"BUS_EVENT {event_type} DEVICE={device_name} DATA={data if data is not None else '-'}"
         try:
             self.sock.sendto(payload.encode("utf-8"), (self.udp_ip, self.udp_port))
@@ -632,19 +628,15 @@ class BusArbitrationSimulator:
             if not iface:
                 self.set_error("Capture interface is empty.")
                 return
-            
-            # Get TShark path from entry
             tshark_path = self.tshark_path_entry.get().strip()
             if not tshark_path:
                 self.set_error("TShark path is empty. Please configure it.")
                 return
-            
             if not os.path.exists(tshark_path):
                 self.set_error(f"TShark not found at: {tshark_path}")
                 self.log_message(f"[Error] TShark executable not found at: {tshark_path}\n")
                 self.log_message("[Info] Please install Wireshark or set the correct TShark path.\n")
                 return
-            
             self.tshark_path = tshark_path
             self.clear_error()
             self.capture_running = True
@@ -657,25 +649,18 @@ class BusArbitrationSimulator:
             self.capture_thread.start()
 
     def pyshark_capture_loop(self, iface_name: str, tshark_path: str):
-        # Ensure this background thread has its own asyncio event loop
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         except Exception:
-            # If we can't set up a loop, pyshark may still work on some versions
             pass
-
         try:
-            # Configure pyshark to use the specified tshark path
-            # Try to set it in config first (if available)
             try:
                 import pyshark.config
                 if hasattr(pyshark.config, 'set_tshark_path'):
                     pyshark.config.set_tshark_path(tshark_path)
             except Exception:
-                pass  # Config method might not exist in all pyshark versions
-            
-            # Create capture with tshark_path parameter
+                pass
             capture = pyshark.LiveCapture(
                 interface=iface_name,
                 display_filter=f"udp.port == {self.udp_port}",
@@ -696,7 +681,6 @@ class BusArbitrationSimulator:
                 self.root.after(0, self.log_message, help_msg)
                 self.root.after(0, self.set_error, "TShark not found - see log for instructions")
             elif "does not exist" in error_msg.lower() or "interface" in error_msg.lower():
-                # Interface error - extract available interfaces from error message
                 help_msg = f"\n[Interface Error] {error_msg}\n"
                 help_msg += "\n[Solution] Please:\n"
                 help_msg += "  1. Click the 'List' button next to 'PyShark iface' to see available interfaces\n"
@@ -714,7 +698,6 @@ class BusArbitrationSimulator:
             self.capture_running = False
             self.root.after(0, self.capture_btn.config, {"text": "Start Capture"})
             return
-
         try:
             for pkt in capture.sniff_continuously():
                 if not self.capture_running:
@@ -763,21 +746,15 @@ class BusArbitrationSimulator:
         self.log.insert(tk.END, msg)
         self.log.see(tk.END)
 
-    # --- mouse wheel support for log scrolling ---
     def _on_mousewheel(self, event):
-        # Windows uses event.delta in steps of 120
-        # Scroll the log widget
         try:
             delta = event.delta
-            # Windows: delta is typically 120 or -120 per notch
-            # Linux/Mac: delta might be different, handle both
             if abs(delta) >= 120:
                 units = int(-1 * (delta / 120))
             else:
                 units = -1 if delta > 0 else 1
             self.log.yview_scroll(units, "units")
         except Exception as e:
-            # Fallback: try direct scrolling
             try:
                 self.log.yview_scroll(int(-1 * (event.delta / 120)), "units")
             except Exception:
@@ -796,7 +773,6 @@ class BusArbitrationSimulator:
         except Exception:
             pass
         self.capture_running = False
-
 
 if __name__ == "__main__":
     root = tk.Tk()
